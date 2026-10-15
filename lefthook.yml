@@ -1,0 +1,15 @@
+# lefthook: https://lefthook.dev. Install: `brew install lefthook && lefthook install`.
+commit-msg:
+  commands:
+    conventional-commit:
+      run: scripts/check-commit-msg.sh {1}
+
+pre-push:
+  parallel: true
+  commands:
+    gofmt:
+      run: test -z "$(gofmt -l .)"
+    vet:
+      run: go vet ./...
+    test:
+      run: go test ./...

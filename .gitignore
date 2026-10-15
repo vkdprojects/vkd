@@ -1,0 +1,8 @@
+# Build output
+/vkd
+/dist/
+
+# Local
+.DS_Store
+*.test
+*.out

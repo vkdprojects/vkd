@@ -1,0 +1,108 @@
+name: base
+kind: base
+summary: Repo skeleton every project gets - README, license, AGENTS.md, atlas.yaml, CI (aggregate CI job), PR checks, release on tag, lefthook
+questions: []
+
+# One LICENSE per answer: each source file is written as LICENSE only when .License matches.
+files:
+  - { path: LICENSE.mit.tmpl, as: LICENSE, when: 'eq .License "MIT"' }
+  - { path: LICENSE.apache-2.0, as: LICENSE, when: 'eq .License "Apache-2.0"' }
+  - { path: LICENSE.agpl-3.0, as: LICENSE, when: 'eq .License "AGPL-3.0"' }
+  - { path: LICENSE.proprietary.tmpl, as: LICENSE, when: 'eq .License "proprietary"' }
+
+# Files built from what every blueprint in the plan contributes. `head` is a template under files/ holding what
+# comes before the merged part; it is not copied to the project.
+composed:
+  - { path: atlas.yaml, kind: atlas }
+  - { path: .gitignore, kind: gitignore }
+  - { path: .env.example, kind: env }
+  - { path: lefthook.yml, kind: lefthook }
+  - { path: AGENTS.md, kind: agents, head: _compose/agents.md.tmpl }
+  - { path: .github/workflows/ci.yml, kind: ci, head: _compose/ci-head.yml.tmpl }
+  - { path: .github/workflows/release.yml, kind: release, head: _compose/release-head.yml.tmpl }
+
+contributes:
+  gitignore:
+    - .env
+    - .env.*
+    - "!.env.example"
+    - atlas.local.yaml
+    - .logs/
+    - .DS_Store
+    - .vkd/base/
+  env:
+    - "# Copy to .env (gitignored). Read by atlas dev through env_files."
+  lefthook:
+    commit-msg:
+      commands:
+        conventional-commit:
+          run: scripts/check-commit-msg.sh {1}
+  ci:
+    jobs:
+      workflows:
+        name: Workflow lint
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: Install zizmor
+            uses: "{{ version \"actions.install_action\" }}"
+            with:
+              tool: zizmor
+          # install-action has no actionlint; Go (preinstalled on the runner) verifies the module against sum.golang.org.
+          - name: Install actionlint
+            run: |
+              go install github.com/rhysd/actionlint/cmd/actionlint@{{ version "actionlint" }}
+              echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          - name: Lint
+            run: scripts/lint-workflows.sh
+  release:
+    jobs:
+      gate:
+        name: CI gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 130
+        permissions:
+          contents: read
+          actions: read
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: CI passed on the tagged commit
+            env:
+              GH_TOKEN: ${{ github.token }}
+              REPO: ${{ github.repository }}
+            run: scripts/ci-passed.sh "$REPO" "$(gh api "repos/$REPO/commits/$TAG" --jq .sha)"
+      publish:
+        name: Publish
+        needs: ["*"]
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+          contents: write
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - uses: "{{ version \"actions.download_artifact\" }}"
+            with:
+              path: artifacts
+              merge-multiple: true
+          - name: SHA256SUMS
+            run: |
+              mkdir -p artifacts
+              cd artifacts
+              find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 -r shasum -a 256 | sed 's#  \./#  #' > ../SHA256SUMS
+              mv ../SHA256SUMS SHA256SUMS
+          - name: Create GitHub Release
+            uses: "{{ version \"actions.action_gh_release\" }}"
+            with:
+              tag_name: ${{ env.TAG }}
+              name: ${{ env.TAG }}
+              generate_release_notes: true
+              prerelease: ${{ contains(env.TAG, '-') }}
+              files: artifacts/**

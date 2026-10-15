@@ -1,0 +1,49 @@
+package app
+
+import (
+	"bytes"
+	"context"
+	"strings"
+	"testing"
+)
+
+func run(t *testing.T, args ...string) (code int, out, errOut string) {
+	t.Helper()
+	var o, e bytes.Buffer
+	code = New(&o, &e).Run(context.Background(), args)
+	return code, o.String(), e.String()
+}
+
+func TestHelloDefaultsToWorld(t *testing.T) {
+	code, out, _ := run(t, "hello")
+	if code != 0 || out != "hello, world\n" {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+}
+
+func TestHelloName(t *testing.T) {
+	code, out, _ := run(t, "hello", "--name", "atlas")
+	if code != 0 || out != "hello, atlas\n" {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+}
+
+func TestUnknownFlagFailsWithNonZeroExit(t *testing.T) {
+	code, out, errOut := run(t, "hello", "--nope")
+	if code == 0 {
+		t.Fatalf("an unknown flag must exit non-zero; out=%q err=%q", out, errOut)
+	}
+	if !strings.Contains(errOut, "{{.Name}}:") {
+		t.Errorf("error is not prefixed with the program name: %q", errOut)
+	}
+}
+
+func TestVersionFlagPrintsVersion(t *testing.T) {
+	old := Version
+	t.Cleanup(func() { Version = old })
+	Version = "9.9.9"
+	code, out, _ := run(t, "--version")
+	if code != 0 || !strings.Contains(out, "9.9.9") {
+		t.Fatalf("code=%d out=%q", code, out)
+	}
+}

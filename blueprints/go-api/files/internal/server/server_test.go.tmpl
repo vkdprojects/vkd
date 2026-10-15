@@ -1,0 +1,59 @@
+package server
+
+import (
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func newTestServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	s := httptest.NewServer(New(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	t.Cleanup(s.Close)
+	return s
+}
+
+func TestHealthz(t *testing.T) {
+	s := newTestServer(t)
+	res, err := http.Get(s.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	if got := res.Header.Get("Content-Type"); got != "application/json" {
+		t.Errorf("content-type = %q", got)
+	}
+	if string(body) != "{\"status\":\"ok\"}\n" {
+		t.Errorf("body = %q", body)
+	}
+}
+
+func TestHealthzRejectsOtherMethods(t *testing.T) {
+	s := newTestServer(t)
+	res, err := http.Post(s.URL+"/healthz", "text/plain", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("POST /healthz = %d, want 405", res.StatusCode)
+	}
+}
+
+func TestParseLevel(t *testing.T) {
+	cases := map[string]slog.Level{
+		"debug": slog.LevelDebug, "DEBUG": slog.LevelDebug, " warn ": slog.LevelWarn,
+		"error": slog.LevelError, "": slog.LevelInfo, "nonsense": slog.LevelInfo,
+	}
+	for in, want := range cases {
+		if got := ParseLevel(in); got != want {
+			t.Errorf("ParseLevel(%q) = %v, want %v", in, got, want)
+		}
+	}
+}

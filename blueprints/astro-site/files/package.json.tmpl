@@ -1,0 +1,24 @@
+{
+	"name": "{{.Name}}-site",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev --port {{port "site"}} --strictPort",
+		"build": "astro build",
+		"preview": "astro preview --port {{port "site"}}",
+		"check-types": "astro check",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@astrojs/sitemap": "{{version "astro_sitemap"}}",
+		"@astrojs/svelte": "{{version "astro_svelte"}}",
+		"@codeatlasdev/ui": "{{version "codeatlasdev_ui"}}",
+		"astro": "{{version "astro"}}",
+		"svelte": "{{version "svelte"}}"
+	},
+	"devDependencies": {
+		"@astrojs/check": "{{version "astro_check"}}",
+		"@types/bun": "{{version "types_bun"}}",
+		"typescript": "{{version "typescript_astro"}}"
+	}
+}

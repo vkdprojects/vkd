@@ -1,0 +1,30 @@
+{
+	"name": "{{.Name}}-web",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"test": "vitest run",
+		"check-types": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings"
+	},
+	"dependencies": {
+		"@codeatlasdev/ui": "{{version "codeatlasdev_ui"}}",
+		"svelte": "{{version "svelte"}}"
+	},
+	"devDependencies": {
+		"@sveltejs/{{if has "go-api"}}adapter-node{{else}}adapter-static{{end}}": "{{if has "go-api"}}{{version "adapter_node"}}{{else}}{{version "adapter_static"}}{{end}}",
+		"@sveltejs/kit": "{{version "sveltekit"}}",
+		"@sveltejs/vite-plugin-svelte": "{{version "vite_plugin_svelte"}}",
+		"@types/node": "{{version "types_node"}}",
+		"svelte-check": "{{version "svelte_check"}}",
+		"typescript": "{{version "typescript_sveltekit"}}",
+		"vite": "{{version "vite"}}",
+		"vitest": "{{version "vitest"}}"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.ts",
+		"#lib/*": "./src/lib/*"
+	}
+}

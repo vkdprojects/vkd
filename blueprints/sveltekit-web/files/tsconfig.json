@@ -1,0 +1,11 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": { "types": ["$app/types", "node"] },
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.svelte",
+		"vite.config.ts",
+		".svelte-kit/types/**/*.d.ts",
+		".svelte-kit/ambient.d.ts"
+	]
+}

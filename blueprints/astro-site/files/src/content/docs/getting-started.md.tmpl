@@ -1,0 +1,13 @@
+---
+title: Getting started
+description: Run, check and build the site.
+order: 1
+---
+
+```bash
+bun install
+bun run dev      # http://localhost:{{port "site"}}
+bun run check    # biome + astro check
+bun run test     # builds the site and asserts on the output
+bun run build    # static site in apps/site/dist
+```

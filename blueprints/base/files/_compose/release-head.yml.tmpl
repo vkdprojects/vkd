@@ -1,0 +1,24 @@
+name: Release
+run-name: Release ${{ inputs.tag || github.ref_name }}
+
+# Runs when a v* tag is pushed, or by hand for an existing tag. Publishes only after the CI run of the tagged
+# commit passed (scripts/ci-passed.sh). The filename must stay release.yml.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish (vX.Y.Z[-pre.N])
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false

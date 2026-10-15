@@ -1,0 +1,32 @@
+{
+	"name": "{{.Name}}-desktop",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"check-types": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "bun run check-types && bun run test",
+		"test": "bun test src",
+		"tauri": "cd ../../crates/desktop && tauri"
+	},
+	"dependencies": {
+		"@codeatlasdev/ui": "{{version "codeatlasdev_ui"}}",
+		"@tauri-apps/api": "{{version "tauri_api"}}",
+		"@tauri-apps/plugin-opener": "{{version "tauri_plugin_opener_js"}}"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "{{version "adapter_static"}}",
+		"@sveltejs/kit": "{{version "sveltekit"}}",
+		"@sveltejs/vite-plugin-svelte": "{{version "vite_plugin_svelte"}}",
+		"@tauri-apps/cli": "{{version "tauri"}}",
+		"@types/bun": "{{version "types_bun"}}",
+		"svelte": "{{version "svelte"}}",
+		"svelte-check": "{{version "svelte_check"}}",
+		"typescript": "{{version "typescript_sveltekit"}}",
+		"vite": "{{version "vite"}}"
+	},
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	}
+}

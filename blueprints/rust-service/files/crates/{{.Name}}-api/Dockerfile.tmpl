@@ -1,0 +1,12 @@
+# Build context is the repository root (the crate is a workspace member):
+#   docker build -f crates/{{.Name}}-api/Dockerfile -t {{.Name}}-api .
+FROM rust:{{version "rust_toolchain"}}-slim AS build
+WORKDIR /src
+COPY . .
+RUN cargo build --release --locked -p {{.Name}}-api
+
+FROM gcr.io/distroless/cc-debian12:nonroot
+COPY --from=build /src/target/release/{{.Name}}-api /{{.Name}}-api
+EXPOSE 8080
+USER nonroot:nonroot
+ENTRYPOINT ["/{{.Name}}-api"]

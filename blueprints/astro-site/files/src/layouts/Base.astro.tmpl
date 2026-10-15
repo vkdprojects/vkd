@@ -1,0 +1,43 @@
+---
+import "@codeatlasdev/ui/styles/global.css";
+import "../styles/site.css";
+
+interface Props {
+	title: string;
+	description: string;
+}
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const fullTitle = title === "{{.Name}}" ? title : `${title} · {{.Name}}`;
+---
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{fullTitle}</title>
+		<meta name="description" content={description} />
+		<link rel="canonical" href={canonical} />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content={fullTitle} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonical} />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<link rel="sitemap" href="/sitemap-index.xml" />
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="site-header">
+			<a class="site-header__brand" href="/">{{.Name}}</a>
+			<nav aria-label="Primary">
+				<a href="/docs/">Docs</a>
+			</nav>
+		</header>
+		<slot />
+		<script>
+			// One store for every island: theme switches and OS scheme changes stay in sync.
+			import { colorScheme } from "@codeatlasdev/ui";
+			colorScheme.init();
+		</script>
+	</body>
+</html>

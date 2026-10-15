@@ -1,0 +1,16 @@
+# Built from the repository root (bun workspaces need the root package.json and bun.lock):
+#   docker build -f apps/web/Dockerfile -t {{.Name}}-web .
+FROM oven/bun:{{version "bun"}}-alpine AS build
+WORKDIR /src
+COPY . .
+RUN bun install --frozen-lockfile
+RUN bun run --cwd apps/web build
+
+FROM node:{{version "node"}}-alpine
+ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0
+WORKDIR /app
+COPY --from=build /src/apps/web/build ./build
+COPY --from=build /src/apps/web/package.json ./
+EXPOSE 3000
+USER node
+CMD ["node", "build/index.js"]

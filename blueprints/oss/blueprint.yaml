@@ -1,0 +1,15 @@
+name: oss
+kind: addon
+summary: Open source governance - CONTRIBUTING with DCO and Conventional Commits, Code of Conduct, SECURITY, issue and PR templates, labels, CODEOWNERS
+requires: [base]
+# Included automatically when the OpenSource answer is true (vkd create --oss).
+when: .OpenSource
+
+contributes:
+  gitignore: []
+  agents: |
+    Open source project: contribution rules are in CONTRIBUTING.md and apply to agents too.
+
+    - Sign off every commit: `git commit -s`. A pull request with an unsigned commit fails the `Signed-off-by` check.
+    - Disclose substantial AI assistance in the pull request description. A human stands behind every line.
+    - Labels live in `.github/labels.yml`; run `scripts/sync-labels.sh --dry-run` to see what would change.

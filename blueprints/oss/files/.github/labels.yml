@@ -1,0 +1,34 @@
+# The label set of this repository. Source of truth: edit here, then run
+#   scripts/sync-labels.sh --dry-run   (prints the gh commands)
+#   scripts/sync-labels.sh             (creates or updates; never deletes)
+# Format: a flat list of three-line entries: name, color (6 hex digits, no '#'), description (<= 100 chars).
+- name: "type: bug"
+  color: d73a4a
+  description: Something does not work the way the docs say it should
+- name: "type: feature"
+  color: a2eeef
+  description: A new capability or an improvement
+- name: "type: docs"
+  color: 0075ca
+  description: Documentation is wrong, missing or unclear
+- name: "type: chore"
+  color: ededed
+  description: Maintenance with no user-visible change (refactor, tooling, deps)
+- name: "type: security"
+  color: b60205
+  description: Hardening or a fix with security impact (vulnerabilities go through SECURITY.md)
+- name: "status: needs-triage"
+  color: fbca04
+  description: A maintainer has not looked at this yet
+- name: "good first issue"
+  color: 7057ff
+  description: A small, well-scoped task for a first contribution
+- name: "help wanted"
+  color: 008672
+  description: A maintainer would welcome a contribution here
+- name: "breaking change"
+  color: e99695
+  description: Changes behavior that users or integrations rely on
+- name: "dependencies"
+  color: 0366d6
+  description: Dependency updates

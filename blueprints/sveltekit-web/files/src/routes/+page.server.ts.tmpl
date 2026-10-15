@@ -1,0 +1,9 @@
+import { readHealth } from "#lib";
+import type { PageServerLoad } from "./$types";
+
+// The server asks the API directly (API_URL); the browser only ever sees `/api` on this origin.
+// Runs on Node (adapter-node), so the environment is `process.env`.
+export const load: PageServerLoad = async ({ fetch }) => {
+	const base = process.env.API_URL ?? "http://127.0.0.1:{{port "api"}}";
+	return { health: await readHealth(fetch, `${base}/healthz`) };
+};

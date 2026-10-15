@@ -1,0 +1,9 @@
+mod commands;
+
+/// Builds and runs the application. Returns the error instead of panicking so `main` owns the exit code.
+pub fn run() -> tauri::Result<()> {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![commands::app_info])
+        .run(tauri::generate_context!())
+}

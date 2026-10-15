@@ -1,0 +1,16 @@
+// Command {{.Name}} is the {{.Name}} command line tool.
+package main
+
+import (
+	"context"
+	"os"
+	"os/signal"
+
+	"{{index .Answers "go-cli" "module"}}/internal/app"
+)
+
+func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	os.Exit(app.New(os.Stdout, os.Stderr).Run(ctx, os.Args[1:]))
+}

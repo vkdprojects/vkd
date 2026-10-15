@@ -1,0 +1,169 @@
+name: tauri-desktop
+kind: stack
+summary: Tauri 2 desktop app - SvelteKit (Svelte 5, static, no SSR) with @codeatlasdev/ui in apps/desktop and a Rust crate in crates/desktop, CI on Linux and macOS, bundles on release
+requires: [base, rust-workspace, bun-workspace]
+target: "."
+
+contributes:
+  workspaces:
+    - apps/desktop
+  atlas:
+    services:
+      - name: desktop
+        command: bun run dev
+        dir: apps/desktop
+        port: "{{ port "desktop" }}"
+        health: "http://localhost:{{ port "desktop" }}/"
+        env:
+          PORT: "{{ port "desktop" }}"
+        open_key: d
+    actions:
+      - key: y
+        label: Check desktop
+        command: bun run --cwd apps/desktop check && cargo clippy -p {{ .Name }}-desktop --all-targets -- -D warnings && cargo test -p {{ .Name }}-desktop
+      - key: p
+        label: Run desktop app (tauri dev)
+        command: bun run --cwd apps/desktop tauri dev
+        session: true
+  gitignore:
+    - crates/desktop/gen/
+  ci:
+    jobs:
+      desktop-frontend:
+        name: Desktop frontend (svelte-check, test, build)
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          - name: Test
+            run: bun run --cwd apps/desktop test
+          - name: Build
+            run: bun run --cwd apps/desktop build
+      desktop-tauri:
+        name: Desktop app (${{ matrix.name }})
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 45
+        strategy:
+          fail-fast: false
+          matrix:
+            include:
+              - { name: linux, os: ubuntu-latest }
+              - { name: macos, os: macos-latest }
+        env:
+          CARGO_TERM_COLOR: always
+          RUSTFLAGS: "-D warnings"
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: Install Linux dependencies
+            if: ${{ runner.os == 'Linux' }}
+            run: |
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev pkg-config
+          - name: Install toolchain
+            run: rustup show active-toolchain || rustup toolchain install
+          - uses: "{{ version \"actions.rust_cache\" }}"
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Build the frontend
+            run: |
+              bun install --frozen-lockfile
+              bun run --cwd apps/desktop build
+          - name: cargo check
+            run: cargo check -p {{ .Name }}-desktop --all-targets --locked
+          - name: cargo test
+            run: cargo test -p {{ .Name }}-desktop --locked
+  release:
+    jobs:
+      desktop-bundle:
+        name: Desktop bundle (${{ matrix.name }})
+        needs: gate
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 60
+        strategy:
+          fail-fast: false
+          matrix:
+            include:
+              - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin, bundles: "app,dmg" }
+              - { name: linux-x64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, bundles: "deb,appimage" }
+        env:
+          CARGO_TERM_COLOR: always
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Install Linux dependencies
+            if: ${{ runner.os == 'Linux' }}
+            run: |
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev pkg-config xdg-utils
+          # A release is never built from a restored cache. rust-toolchain.toml pins the compiler.
+          - name: Install toolchain
+            env:
+              TARGET: ${{ matrix.target }}
+            run: rustup toolchain install && rustup target add "$TARGET"
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          # linuxdeploy (and its plugins) are AppImages; extract-and-run unpacks them instead of mounting through FUSE.
+          - name: Bundle
+            env:
+              TARGET: ${{ matrix.target }}
+              BUNDLES: ${{ matrix.bundles }}
+              APPIMAGE_EXTRACT_AND_RUN: "1"
+            run: bun run --cwd apps/desktop tauri build --target "$TARGET" --bundles "$BUNDLES" --ci
+          - name: Collect
+            env:
+              TARGET: ${{ matrix.target }}
+            run: |
+              VERSION="${TAG#v}"
+              mkdir -p dist
+              for f in target/"$TARGET"/release/bundle/*/*.dmg target/"$TARGET"/release/bundle/*/*.deb target/"$TARGET"/release/bundle/*/*.AppImage; do
+                [ -f "$f" ] || continue
+                ext="${f##*.}"
+                cp "$f" "dist/{{ .Name }}-$VERSION-$TARGET.$ext"
+              done
+              if [ -d target/"$TARGET"/release/bundle/macos/{{ .Name }}.app ]; then
+                tar -C target/"$TARGET"/release/bundle/macos -czf "dist/{{ .Name }}-$VERSION-$TARGET.app.tar.gz" {{ .Name }}.app
+              fi
+          - uses: "{{ version \"actions.upload_artifact\" }}"
+            with:
+              name: "{{ .Name }}-desktop-${{ matrix.name }}"
+              path: dist/*
+              if-no-files-found: error
+  lefthook:
+    pre-push:
+      commands:
+        desktop-rust:
+          run: cargo fmt --all --check && cargo clippy -p {{ .Name }}-desktop --all-targets -- -D warnings && cargo test -p {{ .Name }}-desktop
+  agents: |
+    Tauri {{ version "tauri" }} desktop app: SvelteKit frontend in `apps/desktop` (Svelte 5 runes, adapter-static, SSR off, `@codeatlasdev/ui`) and the native side in `crates/desktop` (crate `{{ .Name }}-desktop`, a member of the Cargo workspace).
+
+    - Run: `atlas dev` serves the frontend on port {{ port "desktop" }} (open it with `d`, but Tauri commands only exist in the app). The real app: `bun run --cwd apps/desktop tauri dev` (atlas action `p`). It starts Vite on port {{ port "desktop" }} through `beforeDevCommand`.
+    - Check: `bun run --cwd apps/desktop check` (Biome from the root, svelte-check, bun test), then `cargo fmt --all --check && cargo clippy -p {{ .Name }}-desktop --all-targets -- -D warnings && cargo test -p {{ .Name }}-desktop`. CI runs both, on Linux and macOS.
+    - The Tauri CLI is `@tauri-apps/cli` in `apps/desktop` (pinned); use `bun run --cwd apps/desktop tauri ...`, never a global `cargo tauri`. The script runs the CLI from `crates/desktop` (the CLI only finds `tauri.conf.json` below its working directory), where `tauri.conf.json` lives and points at `apps/desktop/build`.
+    - Plain `cargo check`, `clippy`, `test` and `build` need no frontend build: without the `custom-protocol` feature tauri is in dev mode and does not embed `apps/desktop/build`. Only `tauri build` embeds it, and `beforeBuildCommand` builds the frontend first. A `cargo build --release --features tauri/custom-protocol` without that build fails with "frontendDist ... doesn't exist".
+    - A native command: write it in `crates/desktop/src/commands.rs` with `#[tauri::command]`, register it in `lib.rs` `generate_handler!`, test the plain function, call it from the frontend with `invoke` in `apps/desktop/src/lib/native.ts`. A command the frontend can call needs a permission in `crates/desktop/capabilities/default.json`; plugins need theirs too.
+    - Rust rules of the workspace apply: no `unwrap`/`expect`/`panic!` (return `Result`), `unsafe_code` is forbidden. `Cargo.lock` is committed.
+    - Frontend rules: Svelte 5 runes only (`$state`, `$derived`, `$props`), Biome formatting (tabs, double quotes; `.svelte` files are not formatted by Biome), UI from `@codeatlasdev/ui`; `nativeFeel()` from `@codeatlasdev/ui/kit` runs in the root layout so the window behaves like an app (no web context menu, no zoom). The Content-Security-Policy in `tauri.conf.json` allows `ipc:`; keep it when you change it, and check it on a bundled build, not only on Vite.
+    - Frontend and Rust types do not share a compiler: when a command returns a struct, the test must serialize the real Rust value to JSON and the frontend type must match those field names (serde default is snake_case unless `#[serde(rename_all = "camelCase")]`).
+    - Icons: `crates/desktop/icons/` holds the placeholder icon. Replace it with `bun run --cwd apps/desktop tauri icon path/to/source.png`.
+    - Release: a `v*` tag builds a macOS arm64 `.app.tar.gz` and `.dmg` and a Linux x64 `.deb` and `.AppImage`, named `{{ .Name }}-<version>-<target>.<ext>`, attached to the GitHub Release with `SHA256SUMS`. Bundles are not code-signed or notarized; add signing secrets before distributing publicly.

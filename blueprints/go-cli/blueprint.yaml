@@ -1,0 +1,115 @@
+name: go-cli
+kind: stack
+summary: Go CLI (urfave/cli v3, version via ldflags), tested, with CI, cross-compiled binaries and checksums on release
+requires: [base]
+target: apps/cli
+
+questions:
+  - id: module
+    prompt: Go module path
+    default: "github.com/{{.Owner}}/{{.Name}}"
+
+contributes:
+  atlas:
+    actions:
+      - key: b
+        label: Build cli
+        command: cd apps/cli && go mod tidy && go build -o bin/{{ .Name }} ./cmd/{{ .Name }}
+      - key: l
+        label: Check cli
+        command: cd apps/cli && go mod tidy && test -z "$(gofmt -l .)" && go vet ./... && go test ./...
+  gitignore:
+    - apps/cli/bin/
+    - apps/cli/dist/
+    - "*.test"
+    - "*.out"
+  ci:
+    jobs:
+      go-cli:
+        name: Go (cli)
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - uses: "{{ version \"actions.setup_go\" }}"
+            with:
+              go-version-file: apps/cli/go.mod
+              cache-dependency-path: apps/cli/go.mod
+          - name: Resolve modules
+            working-directory: apps/cli
+            run: go mod tidy
+          - name: gofmt
+            working-directory: apps/cli
+            run: test -z "$(gofmt -l .)"
+          - name: go vet
+            working-directory: apps/cli
+            run: go vet ./...
+          - name: go test
+            working-directory: apps/cli
+            run: go test -race ./...
+          - name: go build
+            working-directory: apps/cli
+            run: go build -o bin/{{ .Name }} ./cmd/{{ .Name }}
+  release:
+    jobs:
+      go-cli-binaries:
+        name: Binary (cli ${{ matrix.goos }}/${{ matrix.goarch }})
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        strategy:
+          fail-fast: true
+          matrix:
+            include:
+              - { goos: linux, goarch: amd64 }
+              - { goos: linux, goarch: arm64 }
+              - { goos: darwin, goarch: amd64 }
+              - { goos: darwin, goarch: arm64 }
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          # A release is never built from a restored cache (cache poisoning): cache is off.
+          - uses: "{{ version \"actions.setup_go\" }}"
+            with:
+              go-version-file: apps/cli/go.mod
+              cache: false
+          - name: Build
+            working-directory: apps/cli
+            env:
+              CGO_ENABLED: "0"
+              GOOS: ${{ matrix.goos }}
+              GOARCH: ${{ matrix.goarch }}
+            run: |
+              go mod tidy
+              VERSION="${TAG#v}"
+              NAME="{{ .Name }}_${VERSION}_${GOOS}_${GOARCH}"
+              mkdir -p "dist/$NAME"
+              go build -trimpath -ldflags "-s -w -X {{ index .Answers "go-cli" "module" }}/internal/app.Version=$VERSION" -o "dist/$NAME/{{ .Name }}" ./cmd/{{ .Name }}
+              cp ../../LICENSE ../../README.md "dist/$NAME/"
+              tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
+          - uses: "{{ version \"actions.upload_artifact\" }}"
+            with:
+              name: "{{ .Name }}-cli-${{ matrix.goos }}-${{ matrix.goarch }}"
+              path: apps/cli/dist/*.tar.gz
+              if-no-files-found: error
+  lefthook:
+    pre-push:
+      commands:
+        go-cli-test:
+          run: cd apps/cli && go mod tidy && go vet ./... && go test ./...
+  agents: |
+    Go CLI in `apps/cli` (module `{{ index .Answers "go-cli" "module" }}`, Go {{ version "go" }}, [urfave/cli](https://github.com/urfave/cli) {{ version "urfave_cli" }}).
+
+    - Build and run: `cd apps/cli && go mod tidy && go run ./cmd/{{ .Name }} hello --name you`. In `atlas dev`, the `b` action builds `apps/cli/bin/{{ .Name }}` and `l` runs the checks. A CLI has no atlas service: it is not a long-running process.
+    - First time: `go mod tidy` writes `apps/cli/go.sum` from the pinned module versions; commit it. vkd does not generate it, so `vkd update` never rewrites it.
+    - Check: `cd apps/cli && test -z "$(gofmt -l .)" && go vet ./... && go test -race ./...`. CI runs the same, then builds.
+    - Layout: `cmd/{{ .Name }}` (main: signal context, exit code), `internal/app` (the command tree and the `Version` variable). Add a command in `internal/app/app.go` and a test beside it in `internal/app/app_test.go`.
+    - Tests drive the CLI in-process: `New(out, errOut).Run(ctx, args)` returns the exit code, so a test never shells out.
+    - Output goes to the injected writers (`a.Out`, `a.Err`); never `fmt.Println` or `os.Exit` inside `internal/app`. Errors return and are printed once by `Run`.
+    - Version: `app.Version` is `dev` locally and set at release with `-ldflags "-X {{ index .Answers "go-cli" "module" }}/internal/app.Version=<version>"`. Do not hard-code a version.
+    - Release: a `v*` tag cross-compiles `{{ .Name }}_<version>_<os>_<arch>.tar.gz` for linux and darwin on amd64 and arm64 (`CGO_ENABLED=0`, `-trimpath`), and the base publish job adds `SHA256SUMS` to the GitHub Release. Verify a download with `sha256sum -c SHA256SUMS --ignore-missing`.
+    - Pitfall: a new Go dependency needs `go mod tidy` before `go vet`, or Go reports `missing go.sum entry`.

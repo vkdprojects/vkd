@@ -1,0 +1,24 @@
+{
+	"name": "{{.Name}}",
+	"private": true,
+	"packageManager": "bun@{{version "bun"}}",
+	"workspaces": [{{range $i, $w := .Workspaces}}{{if $i}},{{end}}
+		{{quote $w}}{{end}}
+	],
+	"engines": {
+		"bun": ">={{version "bun"}}"
+	},
+	"scripts": {
+		"dev": "turbo run dev",
+		"build": "turbo run build",
+		"test": "turbo run test",
+		"check-types": "turbo run check-types",
+		"check": "biome check . && turbo run check-types",
+		"fmt": "biome check --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "{{version "biome"}}",
+		"turbo": "{{version "turbo"}}",
+		"typescript": "{{version "typescript"}}"
+	}
+}

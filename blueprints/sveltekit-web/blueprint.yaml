@@ -1,0 +1,159 @@
+name: sveltekit-web
+kind: stack
+summary: SvelteKit web app (Svelte 5 runes) on @codeatlasdev/ui - one page, Vitest, Biome; static site by default, Node server (proxying /api to go-api, Docker image to GHCR) when go-api is selected
+requires: [base, bun-workspace]
+target: apps/web
+
+# The adapter follows the backend: with go-api the app runs on a Node server (it asks the API during SSR and
+# proxies /api in dev); alone it is a static site. Both files below exist only in the variant that needs them.
+files:
+  - { path: Dockerfile.tmpl, when: 'has "go-api"' }
+  - { path: src/routes/+page.server.ts.tmpl, when: 'has "go-api"' }
+  - { path: src/routes/+layout.ts.tmpl, when: 'not (has "go-api")' }
+
+contributes:
+  workspaces: [apps/web]
+  atlas:
+    services:
+      - name: web
+        command: bun run dev
+        dir: apps/web
+        port: "{{ port "web" }}"
+        health: "http://localhost:{{ port "web" }}/"
+        {{- if has "go-api" }}
+        depends_on: [api]
+        {{- end }}
+        env:
+          PORT: "{{ port "web" }}"
+        open_key: w
+        open_url: "http://localhost:{{ port "web" }}/"
+    actions:
+      - key: y
+        label: Check web
+        command: cd apps/web && bunx biome check . && bun run check-types && bun run test
+      - key: x
+        label: Build web
+        command: cd apps/web && bun run build
+  env:
+    {{- if has "go-api" }}
+    - "API_URL=http://127.0.0.1:{{ port "api" }}"
+    {{- else }}
+    - "# sveltekit-web needs no environment variables."
+    {{- end }}
+  gitignore:
+    - apps/web/build/
+    - apps/web/.svelte-kit/
+    - apps/web/.vite/
+  ci:
+    jobs:
+      sveltekit-web:
+        name: SvelteKit (web)
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          - name: svelte-check
+            working-directory: apps/web
+            run: bun run check-types
+          - name: Test
+            working-directory: apps/web
+            run: bun run test
+          - name: Build
+            working-directory: apps/web
+            run: bun run build
+  release:
+    jobs:
+      {{- if has "go-api" }}
+      sveltekit-web-image:
+        name: Docker image (web)
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+          contents: read
+          packages: write
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Log in to GHCR
+            env:
+              GHCR_TOKEN: ${{ github.token }}
+              GHCR_USER: ${{ github.actor }}
+            run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          - name: Build and push
+            env:
+              IMAGE: ghcr.io/{{ lower .Owner }}/{{ .Name }}-web
+            run: |
+              VERSION="${TAG#v}"
+              docker build -f apps/web/Dockerfile -t "$IMAGE:$VERSION" .
+              docker push "$IMAGE:$VERSION"
+              case "$VERSION" in
+                *-*) ;; # a prerelease never moves :latest
+                *) docker tag "$IMAGE:$VERSION" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
+              esac
+      {{- else }}
+      sveltekit-web-static:
+        name: Web (static build)
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          - name: Build
+            working-directory: apps/web
+            run: bun run build
+          - name: Package static build
+            run: |
+              mkdir -p out
+              tar -czf "out/{{ .Name }}-web-${TAG#v}.tar.gz" -C apps/web/build .
+          - name: Upload artifact
+            uses: "{{ version \"actions.upload_artifact\" }}"
+            with:
+              name: web-static
+              path: out/*.tar.gz
+              if-no-files-found: error
+      {{- end }}
+  lefthook:
+    pre-push:
+      commands:
+        sveltekit-web-check:
+          run: cd apps/web && bun run check-types && bun run test
+  agents: |
+    SvelteKit web app in `apps/web` (SvelteKit {{ version "sveltekit" }}, Svelte {{ version "svelte" }} runes, `@codeatlasdev/ui` {{ version "codeatlasdev_ui" }}, Vite {{ version "vite" }}, Vitest {{ version "vitest" }}, Bun workspace member).
+
+    - Run: `atlas dev` starts it on port {{ port "web" }} (open it with `w`). Or `cd apps/web && bun run dev`.
+    - Check: `cd apps/web && bunx biome check . && bun run check-types && bun run test`. CI runs `bun run check-types`, `bun run test` and `bun run build` with a frozen lockfile.
+    - Svelte 5 runes only: `$state`, `$derived`, `$effect`, `$props`. Never `export let`, stores for local state or `on:click`; use `onclick`.
+    - UI comes from `@codeatlasdev/ui` (`Button`, `GlassCard`, `PageShell`, `StatusChip`...). Do not write raw colours or spacing: use the `--ca-*` tokens. The brand colour and default scheme live in `src/lib/theme.ts`, read by both `vite.config.ts` and `src/hooks.server.ts`, so change it in that one place.
+    - Layout: `src/routes` (pages; `+layout.svelte` imports `app.css` and starts the colour scheme), `src/lib` (code shared by pages; import it as `#lib`), `src/hooks.server.ts` (theme and error handling).
+    - Tests are Vitest in `src/**/*.test.ts`. A page is rendered on the server with `render` from `svelte/server`; keep logic in `src/lib` and test it as plain functions. Write the failing test first.
+    - TypeScript is pinned to {{ version "typescript_sveltekit" }} in this workspace (SvelteKit and svelte-check need the TypeScript 6 API); the repository root uses a newer one. Do not "align" them.
+    - Biome checks this workspace through the root config (`extends: "//"`); `.svelte` files are linted, not formatted.
+    {{ if has "go-api" -}}
+    - The app runs on a Node server (`@sveltejs/adapter-node`). In dev, `vite.config.ts` proxies `/api/*` to the go-api service (`API_URL`, default `http://127.0.0.1:{{ port "api" }}`) and the `web` atlas service waits for `api`. `src/routes/+page.server.ts` asks the API during SSR; the browser only talks to this origin.
+    - Release: a `v*` tag builds `apps/web/Dockerfile` (from the repository root) and pushes `ghcr.io/{{ lower .Owner }}/{{ .Name }}-web:<version>`. The container listens on `PORT` (default 3000).
+    {{- else -}}
+    - The app is a static site (`@sveltejs/adapter-static`, SPA fallback `200.html`). It has no server code: `$env/dynamic/private`, `+page.server.ts` and form actions do not work here. Switch to `@sveltejs/adapter-node` first if you need them.
+    - Release: a `v*` tag builds `apps/web/build` and attaches `{{ .Name }}-web-<version>.tar.gz` to the GitHub Release.
+    {{- end }}

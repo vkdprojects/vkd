@@ -1,0 +1,49 @@
+use serde::Serialize;
+
+/// What the frontend shows on its first screen. Serialized as snake_case JSON; `apps/desktop/src/lib/native.ts`
+/// mirrors these field names.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct AppInfo {
+    pub name: String,
+    pub version: String,
+    pub os: String,
+}
+
+fn app_info_value() -> AppInfo {
+    AppInfo {
+        name: {{quote .Name}}.to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        os: std::env::consts::OS.to_string(),
+    }
+}
+
+#[tauri::command]
+pub fn app_info() -> AppInfo {
+    app_info_value()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_info_names_the_project_and_the_crate_version() {
+        let info = app_info_value();
+        assert_eq!(info.name, {{quote .Name}});
+        assert_eq!(info.version, env!("CARGO_PKG_VERSION"));
+        assert!(!info.os.is_empty());
+    }
+
+    // The frontend reads these exact keys (apps/desktop/src/lib/native.ts); renaming one is a breaking change.
+    #[test]
+    fn app_info_serializes_the_keys_the_frontend_reads() -> Result<(), serde_json::Error> {
+        let json = serde_json::to_value(app_info_value())?;
+        let mut keys: Vec<&str> = json
+            .as_object()
+            .map(|o| o.keys().map(String::as_str).collect())
+            .unwrap_or_default();
+        keys.sort_unstable();
+        assert_eq!(keys, ["name", "os", "version"]);
+        Ok(())
+    }
+}

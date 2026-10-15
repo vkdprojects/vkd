@@ -1,0 +1,6 @@
+name: probe-web
+kind: stack
+summary: "Test-only JS stack: two workspaces, to prove the bun-workspace root passes its own check."
+requires: [base, bun-workspace]
+contributes:
+  workspaces: ["apps/web", "packages/*"]

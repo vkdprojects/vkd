@@ -1,0 +1,39 @@
+import { render } from "svelte/server";
+import { describe, expect, it } from "vitest";
+{{- if has "go-api"}}
+import type { Health } from "#lib";
+{{- end}}
+import Page from "./+page.svelte";
+{{- if has "go-api"}}
+
+// The page only reads `data.health`; params and form are what Kit passes to every page.
+const props = (health: Health) => ({
+	data: { health },
+	params: {},
+	form: null,
+});
+{{- end}}
+
+describe("home page", () => {
+	it("renders the project title and the starter card on the server", () => {
+{{- if has "go-api"}}
+		const { body } = render(Page, {
+			props: props({ ok: true, label: "API reachable" }),
+		});
+		expect(body).toContain("API reachable");
+{{- else}}
+		const { body } = render(Page);
+{{- end}}
+		expect(body).toContain({{quote .Name}});
+		expect(body).toContain("Clicked 0 times");
+	});
+{{- if has "go-api"}}
+
+	it("shows the failing state when the health check failed", () => {
+		const { body } = render(Page, {
+			props: props({ ok: false, label: "API unreachable" }),
+		});
+		expect(body).toContain("API unreachable");
+	});
+{{- end}}
+});

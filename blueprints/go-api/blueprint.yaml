@@ -1,0 +1,102 @@
+name: go-api
+kind: stack
+summary: Go HTTP API (net/http, slog, graceful shutdown), tested, with CI, a Docker image to GHCR on release and an atlas service
+requires: [base]
+target: apps/api
+
+questions:
+  - id: module
+    prompt: Go module path
+    default: "github.com/{{.Owner}}/{{.Name}}"
+
+contributes:
+  atlas:
+    services:
+      - name: api
+        command: go run ./cmd/api
+        dir: apps/api
+        port: "{{ port "api" }}"
+        health: "http://localhost:{{ port "api" }}/healthz"
+        env:
+          PORT: "{{ port "api" }}"
+          LOG_LEVEL: debug
+        open_key: a
+        open_url: "http://localhost:{{ port "api" }}/healthz"
+    actions:
+      - key: c
+        label: Check api
+        command: cd apps/api && gofmt -l . && go vet ./... && go test ./...
+  env:
+    - "API_LOG_LEVEL=debug"
+  gitignore:
+    - apps/api/bin/
+    - "*.test"
+    - "*.out"
+  ci:
+    jobs:
+      go-api:
+        name: Go (api)
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - uses: "{{ version \"actions.setup_go\" }}"
+            with:
+              go-version-file: apps/api/go.mod
+              cache-dependency-path: apps/api/go.mod
+          - name: gofmt
+            working-directory: apps/api
+            run: test -z "$(gofmt -l .)"
+          - name: go vet
+            working-directory: apps/api
+            run: go vet ./...
+          - name: go test
+            working-directory: apps/api
+            run: go test -race ./...
+  release:
+    jobs:
+      go-api-image:
+        name: Docker image (api)
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+          contents: read
+          packages: write
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Log in to GHCR
+            env:
+              GHCR_TOKEN: ${{ github.token }}
+              GHCR_USER: ${{ github.actor }}
+            run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          - name: Build and push
+            env:
+              IMAGE: ghcr.io/{{ lower .Owner }}/{{ .Name }}-api
+            run: |
+              VERSION="${TAG#v}"
+              docker build -t "$IMAGE:$VERSION" apps/api
+              docker push "$IMAGE:$VERSION"
+              case "$VERSION" in
+                *-*) ;; # a prerelease never moves :latest
+                *) docker tag "$IMAGE:$VERSION" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
+              esac
+  lefthook:
+    pre-push:
+      commands:
+        go-api-test:
+          run: cd apps/api && go vet ./... && go test ./...
+  agents: |
+    Go HTTP API in `apps/api` (module `{{ index .Answers "go-api" "module" }}`, Go {{ version "go" }}, standard library only).
+
+    - Run: `atlas dev` starts it on port {{ port "api" }} (`GET /healthz`). Or `cd apps/api && go run ./cmd/api`.
+    - Check: `cd apps/api && gofmt -l . && go vet ./... && go test -race ./...`. CI runs the same.
+    - Layout: `cmd/api` (main: config, logging, graceful shutdown), `internal/server` (routes and handlers). Add a route in `internal/server/server.go` and a test beside it.
+    - Config comes from the environment only: `PORT` (default 8080), `LOG_LEVEL` (debug, info, warn, error).
+    - Logs are structured JSON via `log/slog` on stdout. Do not use `fmt.Println` for logs.
+    - Release: a `v*` tag builds `apps/api/Dockerfile` and pushes `ghcr.io/{{ lower .Owner }}/{{ .Name }}-api:<version>`.

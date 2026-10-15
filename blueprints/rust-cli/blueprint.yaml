@@ -1,0 +1,66 @@
+name: rust-cli
+kind: stack
+summary: Rust CLI (clap derive, anyhow) in a cargo workspace, tested with assert_cmd, with cross-compiled release binaries and checksums
+requires: [base, rust-workspace]
+target: "."
+
+contributes:
+  atlas:
+    actions:
+      - key: x
+        label: Run cli (--help)
+        command: cargo run -q -p {{ .Name }} -- --help
+  gitignore:
+    - dist/
+  release:
+    jobs:
+      rust-cli-build:
+        name: "Binary (${{ matrix.target }})"
+        needs: gate
+        runs-on: "${{ matrix.os }}"
+        timeout-minutes: 45
+        strategy:
+          fail-fast: false
+          matrix:
+            include:
+              - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+              - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+              - { target: x86_64-apple-darwin, os: macos-15-intel }
+              - { target: aarch64-apple-darwin, os: macos-latest }
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          # A release is never built from a restored cache. rust-toolchain.toml pins the compiler.
+          - name: Install toolchain
+            env:
+              TARGET: ${{ matrix.target }}
+            run: rustup toolchain install && rustup target add "$TARGET"
+          - name: Build
+            env:
+              TARGET: ${{ matrix.target }}
+            run: cargo build --release --locked -p {{ .Name }} --target "$TARGET"
+          - name: Package
+            env:
+              TARGET: ${{ matrix.target }}
+            run: |
+              VERSION="${TAG#v}"
+              NAME="{{ .Name }}-$VERSION-$TARGET"
+              mkdir -p "dist/$NAME"
+              cp "target/$TARGET/release/{{ .Name }}" README.md "dist/$NAME/"
+              tar -C dist -czf "dist/$NAME.tar.gz" "$NAME"
+              rm -rf "dist/$NAME"
+          - uses: "{{ version \"actions.upload_artifact\" }}"
+            with:
+              name: "{{ .Name }}-${{ matrix.target }}"
+              path: dist/*.tar.gz
+              if-no-files-found: error
+  agents: |
+    Rust CLI in `crates/{{ .Name }}` (binary `{{ .Name }}`, clap derive, anyhow).
+
+    - Run: `cargo run -p {{ .Name }} -- greet --name World`; `cargo run -p {{ .Name }} -- --help` lists commands.
+    - Layout: `src/main.rs` is thin (parse, call, map the error to an exit code). `src/lib.rs` holds the `Cli`/`Command` definitions and `run`; `src/greet.rs` is one command. Add a command: a variant in `Command`, a module, an arm in `run`.
+    - Output: results go to stdout through the `Write` passed to `run`, never straight to `println!`, so tests capture them. Errors go to stderr with a non-zero exit code.
+    - Tests: unit tests beside the code call `run` with a buffer; `tests/cli.rs` runs the real binary with `assert_cmd` (`--help`, `--version`, a command, a failing command). Write the failing test first.
+    - Release: a `v*` tag builds `{{ .Name }}` for linux and macOS (amd64 and arm64) with `--locked`, packs each as `{{ .Name }}-<version>-<target>.tar.gz`, and the publish job adds `SHA256SUMS` to the GitHub Release.

@@ -1,0 +1,50 @@
+//! {{.Description}}
+
+mod greet;
+
+use std::io::Write;
+
+use clap::{Parser, Subcommand};
+
+/// {{.Description}}
+#[derive(Debug, Parser)]
+#[command(name = "{{.Name}}", version, about, arg_required_else_help = true)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Print a greeting.
+    Greet(greet::Args),
+}
+
+/// Runs a parsed command, writing its result to `out`.
+///
+/// # Errors
+///
+/// Returns the command's error, or the I/O error from writing to `out`.
+pub fn run(cli: Cli, out: &mut impl Write) -> anyhow::Result<()> {
+    match cli.command {
+        Command::Greet(args) => greet::run(&args, out),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn greet_through_the_parser() {
+        let cli = Cli::try_parse_from(["{{.Name}}", "greet", "--name", "Ada"]).unwrap();
+        let mut out = Vec::new();
+        run(cli, &mut out).unwrap();
+        assert_eq!(String::from_utf8(out).unwrap(), "Hello, Ada!\n");
+    }
+
+    #[test]
+    fn no_subcommand_is_a_usage_error() {
+        assert!(Cli::try_parse_from(["{{.Name}}"]).is_err());
+    }
+}

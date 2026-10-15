@@ -1,0 +1,7 @@
+{
+	"name": "web",
+	"private": true,
+	"scripts": {
+		"check-types": "echo web-types-ok"
+	}
+}

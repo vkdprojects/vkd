@@ -1,0 +1,13 @@
+---
+name: {{.Name}}
+description: Work in the {{.Name}} repository: run the dev environment, the checks and open a pull request. Use for any change in this repo.
+---
+
+# {{.Name}}
+
+{{.Description}}
+
+1. `cp .env.example .env`, then `atlas dev` (or use the atlas MCP tools: `atlas_status`, `atlas_logs`).
+2. Make the change on a branch `type/short-desc`. Write the failing test first.
+3. Run the checks listed in `AGENTS.md` for the part you touched.
+4. Open a pull request titled as a Conventional Commits subject.{{if .OpenSource}} Sign off every commit (`git commit -s`).{{end}}

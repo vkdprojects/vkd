@@ -1,0 +1,18 @@
+name: CI
+
+# Runs on pull requests (forks included: read-only token, no secrets) and on pushes to main. One check is
+# required in the branch ruleset: `CI`, the last job. It needs every other job, so adding a blueprint adds a gate
+# without touching the ruleset. Composed by vkd: add jobs through a blueprint, not by hand-editing the list.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels its older run. Runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}

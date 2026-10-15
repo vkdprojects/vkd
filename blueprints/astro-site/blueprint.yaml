@@ -1,0 +1,149 @@
+name: astro-site
+kind: stack
+summary: Astro static site (docs and marketing) on @codeatlasdev/ui - content collection, sitemap, Svelte island, tested, with CI, a dist artifact on release and optional Cloudflare Pages deploy
+requires: [base, bun-workspace]
+target: apps/site
+
+contributes:
+  workspaces: [apps/site]
+  atlas:
+    services:
+      - name: site
+        command: bun run dev
+        dir: apps/site
+        port: "{{ port "site" }}"
+        health: "http://localhost:{{ port "site" }}/"
+        open_key: o
+        open_url: "http://localhost:{{ port "site" }}/"
+    actions:
+      - key: h
+        label: Check site
+        command: cd apps/site && bunx biome check . && bun run check-types && bun run test
+      - key: u
+        label: Build site
+        command: cd apps/site && bun run build
+  env:
+    - "# Optional: absolute site URL for the sitemap and canonical links (default https://{{ lower .Owner }}.github.io)."
+    - "SITE_URL="
+  ci:
+    jobs:
+      astro-site:
+        name: Astro (site)
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          - name: astro check
+            working-directory: apps/site
+            run: bun run check-types
+          - name: Build
+            working-directory: apps/site
+            run: bun run build
+          - name: Test
+            working-directory: apps/site
+            run: bun run test
+  release:
+    jobs:
+      astro-site-dist:
+        name: Site (static build)
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          - name: Build
+            working-directory: apps/site
+            run: bun run build
+          - name: Package dist
+            run: |
+              mkdir -p out
+              tar -czf "out/{{ .Name }}-site-${TAG#v}.tar.gz" -C apps/site/dist .
+          - name: Upload artifact
+            uses: "{{ version \"actions.upload_artifact\" }}"
+            with:
+              name: site-dist
+              path: out/*.tar.gz
+              if-no-files-found: error
+      # Optional: deploys to Cloudflare Pages only when both secrets exist (see AGENTS.md); a repository without them
+      # still gets the tarball release asset and this job passes after its own build.
+      astro-site-deploy:
+        name: Site (Cloudflare Pages, optional)
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Check Cloudflare credentials
+            id: cf
+            env:
+              CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+              CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            run: |
+              if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+                echo "enabled=true" >> "$GITHUB_OUTPUT"
+              else
+                echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set: skipping the Cloudflare Pages deploy."
+              fi
+          - name: Install Bun
+            if: steps.cf.outputs.enabled == 'true'
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            if: steps.cf.outputs.enabled == 'true'
+            run: bun install --frozen-lockfile
+          - name: Build
+            if: steps.cf.outputs.enabled == 'true'
+            working-directory: apps/site
+            run: bun run build
+          - name: Deploy
+            if: steps.cf.outputs.enabled == 'true'
+            working-directory: apps/site
+            env:
+              CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+              CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+              PROJECT: "{{ .Name }}-site"
+              BRANCH: ${{ vars.CLOUDFLARE_PAGES_BRANCH || 'main' }}
+            run: bunx wrangler@{{ version "wrangler" }} pages deploy dist --project-name "$PROJECT" --branch "$BRANCH" --commit-dirty=true
+  lefthook:
+    pre-push:
+      commands:
+        astro-site-check:
+          run: cd apps/site && bun run check-types && bun run test
+  agents: |
+    Astro static site in `apps/site` (Astro {{ version "astro" }}, `@codeatlasdev/ui` {{ version "codeatlasdev_ui" }}, Svelte {{ version "svelte" }}, Bun workspace member).
+
+    - Run: `atlas dev` starts it on port {{ port "site" }} (open it with `o`; action `h` checks, `u` builds). Or `cd apps/site && bun run dev`.
+    - Check: `cd apps/site && bunx biome check . && bun run check-types && bun run test`. CI runs `astro check`, a build and the same tests. `bun run test` builds the site first and asserts on `dist/`.
+    - Layout: `src/pages` (routes; `docs/[...slug].astro` renders the `docs` collection), `src/content/docs/*.md` (content collection, schema in `src/content.config.ts`: `title`, `description`, optional `order`), `src/layouts/Base.astro` (head, SEO tags, theme), `src/components/*.svelte` (Svelte 5 islands), `src/theme.ts` (the one `ThemeOptions` object).
+    - Styling: import `@codeatlasdev/ui/styles/global.css` once (the layout does) and use `--ca-*` tokens and `@codeatlasdev/ui` components. Do not hard-code colors, and do not restyle `body`.
+    - Islands: a Svelte component only ships JavaScript when a page marks it (`<Counter client:load />`). Prefer plain `.astro` for static markup. Svelte 5 runes only (`$state`, `$derived`, `$props`).
+    - Add a docs page: create `src/content/docs/<slug>.md` with the frontmatter; it is routed, sorted and added to the sitemap automatically.
+    - Env: `SITE_URL` sets the absolute URL for the sitemap and canonical links (default `https://{{ lower .Owner }}.github.io`).
+    - TypeScript is pinned to {{ version "typescript_astro" }} in this workspace because `astro check` rejects TypeScript 7. Do not bump it until Astro supports it.
+    - Biome cannot see template usage in `.astro` and `.svelte`, so `apps/site/biome.json` turns off `noUnusedImports` and `noUnusedVariables` and the formatter for those two file types. `astro check` covers them.
+    - Release: a `v*` tag builds the site and attaches `{{ .Name }}-site-<version>.tar.gz` to the GitHub release.
+    - Deploy (optional): the same tag deploys to Cloudflare Pages (project `{{ .Name }}-site`) only when the repository has the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the Pages project must exist). Without them the job logs a notice and does nothing. Set the repository variable `CLOUDFLARE_PAGES_BRANCH` to deploy a non-production branch.

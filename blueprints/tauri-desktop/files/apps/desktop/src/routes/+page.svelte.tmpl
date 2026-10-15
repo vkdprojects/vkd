@@ -1,0 +1,42 @@
+<script lang="ts">
+	import { Button, GlassCard, StatusChip } from "@codeatlasdev/ui";
+	import { onMount } from "svelte";
+	import { type AppInfo, appInfo } from "#lib/native.ts";
+
+	let info = $state<AppInfo | null>(null);
+	let clicks = $state(0);
+
+	onMount(async () => {
+		info = await appInfo();
+	});
+</script>
+
+<svelte:head>
+	<title>{{.Name}}</title>
+</svelte:head>
+
+<main>
+	<h1>{{.Name}}</h1>
+	<GlassCard title="Status" headingLevel={2}>
+		<p>{{.Description}}</p>
+		<p>
+			{#if info}
+				<StatusChip status="success" label={`${info.name} ${info.version} on ${info.os}`} />
+			{:else}
+				<StatusChip status="neutral" label="Running in a browser" />
+			{/if}
+		</p>
+		<Button onclick={() => clicks++}>Clicked {clicks} times</Button>
+	</GlassCard>
+</main>
+
+<style>
+	main {
+		display: grid;
+		gap: 16px;
+		place-content: center;
+		justify-items: center;
+		min-height: 100%;
+		padding: 24px;
+	}
+</style>

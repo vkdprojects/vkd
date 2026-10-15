@@ -1,0 +1,28 @@
+# golangci-lint v2 (https://golangci-lint.run). Keep the set small and every linter earning its place.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard        # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+    - nolintlint
+    - unconvert
+    - wastedassign
+  settings:
+    errcheck:
+      check-type-assertions: false
+    nolintlint:
+      require-specific: true
+      require-explanation: true
+  exclusions:
+    paths:
+      - blueprints        # template sources, not vkd's own code
+
+formatters:
+  enable:
+    - gofmt

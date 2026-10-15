@@ -1,0 +1,23 @@
+<script lang="ts">
+	import { Button, GlassCard, PageShell, StatusChip, ThemeToggle } from "@codeatlasdev/ui";
+{{- if has "go-api"}}
+	import type { PageProps } from "./$types";
+
+	const { data }: PageProps = $props();
+{{- end}}
+
+	let count = $state(0);
+</script>
+
+<PageShell title={{quote .Name}} description={{quote .Description}}>
+{{- if has "go-api"}}
+	<GlassCard title="API" headingLevel={2}>
+		<StatusChip status={data.health.ok ? "success" : "error"} label={data.health.label} />
+	</GlassCard>
+{{- end}}
+	<GlassCard title="Starter" headingLevel={2}>
+		<p>Edit <code>src/routes/+page.svelte</code> and the page updates.</p>
+		<Button variant="filled" onclick={() => count++}>Clicked {count} times</Button>
+		<ThemeToggle />
+	</GlassCard>
+</PageShell>

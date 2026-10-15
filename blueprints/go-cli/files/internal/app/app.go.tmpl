@@ -1,0 +1,54 @@
+// Package app is the command tree of {{.Name}}. It writes to injected streams and returns exit codes, so tests
+// drive it in-process.
+package app
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"github.com/urfave/cli/v3"
+)
+
+// Version is set by the linker (-X) on release builds.
+var Version = "dev"
+
+// App holds the output streams of one run.
+type App struct {
+	Out, Err io.Writer
+}
+
+// New returns an App writing to out and errOut.
+func New(out, errOut io.Writer) *App { return &App{Out: out, Err: errOut} }
+
+// Run executes args (without the program name) and returns the process exit code.
+func (a *App) Run(ctx context.Context, args []string) int {
+	root := &cli.Command{
+		Name:                  "{{.Name}}",
+		Usage:                 {{quote .Description}},
+		Version:               Version,
+		Writer:                a.Out,
+		ErrWriter:             a.Err,
+		EnableShellCompletion: true,
+		Commands:              []*cli.Command{a.helloCmd()},
+	}
+	if err := root.Run(ctx, append([]string{"{{.Name}}"}, args...)); err != nil {
+		_, _ = fmt.Fprintln(a.Err, "{{.Name}}:", err)
+		return 1
+	}
+	return 0
+}
+
+func (a *App) helloCmd() *cli.Command {
+	return &cli.Command{
+		Name:  "hello",
+		Usage: "print a greeting",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "name", Aliases: []string{"n"}, Value: "world", Usage: "who to greet"},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			_, err := fmt.Fprintf(a.Out, "hello, %s\n", cmd.String("name"))
+			return err
+		},
+	}
+}

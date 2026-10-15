@@ -1,0 +1,63 @@
+# Contributing to {{.Name}}
+
+Thanks for wanting to help. By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). {{.Name}} is licensed under {{.License}}, and so are your contributions (see [License of contributions](#license-of-contributions)).
+
+## Report a bug or ask for a feature
+
+Open an [issue](https://github.com/{{.Owner}}/{{.Name}}/issues/new/choose). For a bug include the version or commit, your OS, what you ran, what you expected, and the relevant lines of `.logs/<service>.log` (redact secrets). The smallest reproduction gets fixed fastest.
+
+**Security problems do not go in public issues.** Follow [SECURITY.md](SECURITY.md).
+
+## Send a change
+
+For anything bigger than a small fix, open an issue first so we can agree on the approach.
+
+```bash
+git clone https://github.com/{{.Owner}}/{{.Name}}.git
+cd {{.Name}}
+cp .env.example .env
+atlas dev            # the dev environment from atlas.yaml
+```
+
+1. Branch from `main`: `type/short-desc` (`fix/empty-health-path`).
+2. Change the code and add or update tests. **Tests come first**: for a bug fix, write the regression test, watch it fail for the right reason, then fix it.
+3. Run the checks for the part you touched (they are listed in [AGENTS.md](AGENTS.md)).
+4. Open a pull request (a draft until it is ready) and fill in the template.
+
+Rules of thumb:
+
+- Prefer behavior tests (boundaries, failures, state transitions) over getters.
+- Fix warnings; do not silence them.
+- Do not add a dependency without saying why. Versions are pinned; no `latest`.
+- Commit subjects are short and imperative with a conventional prefix: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `revert`, `style`, scoped when useful (`fix(api): ...`), `!` for a breaking change (`feat!: ...`). The pull request **title** must have this form: it becomes the commit subject on squash, and the `Conventional title` check fails otherwise. A `commit-msg` hook (lefthook) checks it locally.
+
+### Pull request flow and who merges
+
+- Open a pull request against `main`. Required checks: `CI`, `Signed-off-by` and `Conventional title`.
+- PRs are squash-merged by a maintainer once checks are green and a maintainer approved. Do not merge your own PR unless you are a maintainer.
+- AI agents follow the same flow: a branch and a pull request, never a push to `main`.
+
+## Developer Certificate of Origin (DCO)
+
+Every commit must carry a `Signed-off-by` trailer. It is your statement, under the [Developer Certificate of Origin 1.1](https://developercertificate.org/), that you wrote the change or have the right to submit it under this project's license. There is no CLA and you keep your copyright.
+
+```bash
+git commit -s -m "fix: handle an empty health path"   # adds: Signed-off-by: Your Name <you@example.com>
+git rebase --signoff main                              # sign every commit of a branch you already made
+git commit --amend -s --no-edit                        # sign the last one
+```
+
+The name and email must match your git identity. The `Signed-off-by` check on pull requests (`scripts/check-dco.sh`) fails when a commit lacks the trailer.
+
+## License of contributions
+
+Unless you say otherwise, any contribution you submit is licensed under {{.License}}, the same as the project, without additional terms.
+
+## AI-assisted contributions
+
+AI tools are fine to use; the rules protect reviewers' time and the codebase.
+
+- **A human is accountable.** You must understand every line you submit, be able to explain it in review, and have run it.
+- **No autonomous PRs.** Pull requests opened by an agent without a person driving, reading and standing behind the change are closed. Disclose substantial AI assistance in the pull request description (tool and what it did).
+- **Do not paste unverified output**: invented APIs, fabricated test results, or issue text generated at volume.
+- **Licensing and secrets.** Do not submit code you cannot license under the terms above, and never put secrets or private data into a prompt or the diff. The DCO sign-off is yours, never the tool's.

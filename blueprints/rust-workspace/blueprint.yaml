@@ -1,0 +1,78 @@
+name: rust-workspace
+kind: addon
+summary: Cargo workspace root - Cargo.toml (crates/*, workspace lints, profiles), pinned rust-toolchain.toml, deny.toml, rustfmt.toml, Rust CI (fmt, clippy -D warnings, nextest, cargo-deny)
+requires: [base]
+# Included automatically when a Rust component is selected; both rust-cli and rust-service require it, so the root
+# files exist once however the two are combined.
+when: or (has "rust-cli") (has "rust-service")
+
+contributes:
+  gitignore:
+    - target/
+    # Applications commit Cargo.lock (reproducible `--locked` builds); only this addon decides that.
+  ci:
+    jobs:
+      rust:
+        name: Rust (fmt, clippy, test)
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        env:
+          CARGO_TERM_COLOR: always
+          RUSTFLAGS: "-D warnings"
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          # rust-toolchain.toml is the single pin; rustup installs exactly that channel and its components.
+          - name: Install toolchain
+            run: rustup show active-toolchain || rustup toolchain install
+          - uses: "{{ version \"actions.rust_cache\" }}"
+          # A tauri-desktop crate links WebKitGTK; the guard keeps every other project from installing it.
+          - name: Tauri system dependencies
+            if: ${{ hashFiles('crates/desktop/tauri.conf.json') != '' }}
+            run: |
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libsoup-3.0-dev pkg-config
+          - name: Install nextest
+            uses: "{{ version \"actions.install_action\" }}"
+            with:
+              tool: nextest
+          - name: cargo fmt
+            run: cargo fmt --all --check
+          - name: cargo clippy
+            run: cargo clippy --workspace --all-targets --locked -- -D warnings
+          - name: cargo nextest
+            run: cargo nextest run --workspace --locked
+          - name: cargo test (doctests)
+            run: cargo test --workspace --doc --locked
+      rust-deny:
+        name: Rust (cargo-deny)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - uses: "{{ version \"actions.cargo_deny\" }}"
+            with:
+              command: check
+  lefthook:
+    pre-push:
+      commands:
+        rust-check:
+          run: cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+  atlas:
+    actions:
+      - key: c
+        label: Check rust
+        command: cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+  agents: |
+    Cargo workspace at the repository root (Rust {{ version "rust_toolchain" }}, edition 2024, resolver 3). Members are `crates/*`.
+
+    - Check: `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace`. CI runs the same with `--locked`, plus `cargo nextest run` and `cargo deny check`.
+    - Toolchain: `rust-toolchain.toml` pins `{{ version "rust_toolchain" }}` with rustfmt and clippy; rustup picks it up on its own. `rust-version` in `Cargo.toml` is the MSRV ({{ version "rust" }}); bump both together.
+    - Lints live in `[workspace.lints]` and every crate opts in with `[lints] workspace = true`. A new crate without that line is a bug. Fix a warning, do not `#[allow]` it without a comment saying why.
+    - Dependencies are declared once in `[workspace.dependencies]`; a crate uses `name.workspace = true`. Add a dependency there first.
+    - `cargo deny check` enforces the license allow-list and advisories in `deny.toml`. A new license goes in the allow-list on purpose, with the reason in the PR.
+    - `Cargo.lock` is committed (applications). Commit it with every dependency change; CI uses `--locked`.
+    - Do not use `unwrap()`, `expect()` or `panic!` outside tests; return an error. `println!` is for command output only, logs go through `tracing`.

@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "{{version "rust"}}"
+{{- if eq .License "proprietary"}}
+publish = false
+{{- else}}
+license = "{{.License}}"
+{{- end}}
+repository = "https://github.com/{{.Owner}}/{{.Name}}"
+authors = ["{{.Owner}}"]
+
+# Every dependency of every crate is declared here once; a crate says `name.workspace = true`.
+[workspace.dependencies]
+anyhow = "{{version "crate_anyhow"}}"
+assert_cmd = "{{version "crate_assert_cmd"}}"
+axum = "{{version "crate_axum"}}"
+clap = { version = "{{version "crate_clap"}}", features = ["derive"] }
+http-body-util = "{{version "crate_http_body_util"}}"
+predicates = "{{version "crate_predicates"}}"
+serde = { version = "{{version "crate_serde"}}", features = ["derive"] }
+serde_json = "{{version "crate_serde_json"}}"
+tokio = { version = "{{version "crate_tokio"}}", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tower = { version = "{{version "crate_tower"}}", features = ["util"] }
+tracing = "{{version "crate_tracing"}}"
+tracing-subscriber = { version = "{{version "crate_tracing_subscriber"}}", features = ["env-filter", "json"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

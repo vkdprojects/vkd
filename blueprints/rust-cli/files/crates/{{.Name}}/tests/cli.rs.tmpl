@@ -1,0 +1,51 @@
+//! Integration tests: a failed `unwrap` is the failure.
+#![allow(clippy::unwrap_used)]
+
+use assert_cmd::Command;
+use predicates::prelude::*;
+
+fn bin() -> Command {
+    Command::cargo_bin("{{.Name}}").unwrap()
+}
+
+#[test]
+fn help_lists_the_commands() {
+    bin()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("greet"));
+}
+
+#[test]
+fn version_is_the_package_version() {
+    bin()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn greet_prints_to_stdout() {
+    bin()
+        .args(["greet", "--name", "Ada"])
+        .assert()
+        .success()
+        .stdout("Hello, Ada!\n");
+}
+
+#[test]
+fn blank_name_fails_with_a_message_on_stderr() {
+    bin()
+        .args(["greet", "--name", " "])
+        .assert()
+        .failure()
+        .stdout("")
+        .stderr(predicate::str::contains("must not be empty"));
+}
+
+#[test]
+fn no_arguments_is_a_usage_error() {
+    bin().assert().failure().code(2);
+}

@@ -1,0 +1,16 @@
+use std::io::{self, Write};
+use std::process::ExitCode;
+
+use clap::Parser;
+
+fn main() -> ExitCode {
+    let cli = {{snake .Name}}::Cli::parse();
+    let mut out = io::stdout().lock();
+    match {{snake .Name}}::run(cli, &mut out).and_then(|()| out.flush().map_err(Into::into)) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("error: {err:#}");
+            ExitCode::FAILURE
+        }
+    }
+}

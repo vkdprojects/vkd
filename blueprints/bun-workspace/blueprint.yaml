@@ -1,0 +1,48 @@
+name: bun-workspace
+kind: addon
+summary: Bun workspaces root - package.json (workspaces, turbo, biome), biome.json (tabs, double quotes), turbo.json, JS CI job
+requires: [base]
+# Included automatically when a JavaScript component is selected.
+when: or (has "sveltekit-web") (has "astro-site") (has "tauri-desktop")
+
+contributes:
+  atlas:
+    pre_command: bun install
+  gitignore:
+    - node_modules/
+    - dist/
+    - build/
+    - .turbo/
+    - .svelte-kit/
+    - .astro/
+  ci:
+    jobs:
+      js:
+        name: JS (biome, types, tests)
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              persist-credentials: false
+          - name: Install Bun
+            uses: "{{ version \"actions.setup_bun\" }}"
+            with:
+              bun-version: "{{ version \"bun\" }}"
+              no-cache: true
+          - name: Install
+            run: bun install --frozen-lockfile
+          - name: Check
+            run: bun run check
+  lefthook:
+    pre-push:
+      commands:
+        js-check:
+          run: bun run check
+  agents: |
+    Bun workspaces monorepo (Bun {{ version "bun" }}, Turborepo, Biome {{ version "biome" }}).
+
+    - `bun install` once at the root; never run `npm`/`pnpm`/`yarn` here.
+    - `bun run check`: Biome + type checks across every workspace. `bun run test`: tests. `bun run build`: production builds.
+    - Biome is the only formatter and linter: tabs, double quotes. `bun run fmt` fixes formatting.
+    - Workspace globs live in the root `package.json` (`{{ join ", " .Workspaces }}`), contributed by each component blueprint.

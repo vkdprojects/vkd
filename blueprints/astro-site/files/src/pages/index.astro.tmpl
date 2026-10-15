@@ -1,0 +1,19 @@
+---
+import { getCollection } from "astro:content";
+import Counter from "../components/Counter.svelte";
+import Base from "../layouts/Base.astro";
+import { docHref, sortDocs } from "../lib/docs";
+
+const docs = sortDocs(await getCollection("docs"));
+---
+<Base title="{{.Name}}" description="{{.Description}}">
+	<main id="main">
+		<h1>{{.Name}}</h1>
+		<p class="lead">{{.Description}}</p>
+		<Counter client:load />
+		<h2>Docs</h2>
+		<ul class="doc-list">
+			{docs.map((d) => <li><a href={docHref(d.id)}>{d.data.title}</a>: {d.data.description}</li>)}
+		</ul>
+	</main>
+</Base>

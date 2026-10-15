@@ -1,0 +1,48 @@
+/* Layout only: colors, type and spacing come from @codeatlasdev/ui tokens (--ca-*). */
+.skip-link {
+	position: absolute;
+	left: -999px;
+}
+
+.skip-link:focus {
+	left: var(--ca-space-4);
+	top: var(--ca-space-4);
+}
+
+.site-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: var(--ca-space-4) var(--ca-space-6);
+	border-bottom: var(--ca-border-width) solid var(--ca-border-color);
+}
+
+.site-header nav {
+	display: flex;
+	gap: var(--ca-space-4);
+}
+
+.site-header a {
+	text-decoration: none;
+}
+
+.site-header__brand {
+	font-weight: 600;
+}
+
+main {
+	max-width: 48rem;
+	margin: 0 auto;
+	padding: var(--ca-space-12) var(--ca-space-6);
+}
+
+.lead {
+	color: var(--ca-text-secondary);
+}
+
+.doc-list {
+	padding: 0;
+	list-style: none;
+	display: grid;
+	gap: var(--ca-space-3);
+}

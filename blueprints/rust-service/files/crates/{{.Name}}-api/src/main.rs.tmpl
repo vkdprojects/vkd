@@ -1,0 +1,61 @@
+use std::env;
+use std::net::SocketAddr;
+
+use anyhow::Context;
+use tokio::net::TcpListener;
+use tokio::signal;
+use tracing_subscriber::EnvFilter;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let filter = EnvFilter::try_new(env::var("LOG_LEVEL").unwrap_or_default())
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::fmt()
+        .json()
+        .with_env_filter(filter)
+        .init();
+
+    let port: u16 = match env::var("PORT") {
+        Ok(p) => p
+            .parse()
+            .with_context(|| format!("PORT {p:?} is not a port number"))?,
+        Err(_) => 8080,
+    };
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let listener = TcpListener::bind(addr)
+        .await
+        .with_context(|| format!("cannot bind {addr}"))?;
+    tracing::info!(%addr, "listening");
+
+    axum::serve(listener, {{snake .Name}}_api::app())
+        .with_graceful_shutdown(shutdown())
+        .await
+        .context("server stopped")?;
+    tracing::info!("stopped");
+    Ok(())
+}
+
+/// Resolves on SIGINT or SIGTERM.
+async fn shutdown() {
+    let ctrl_c = async {
+        if signal::ctrl_c().await.is_err() {
+            std::future::pending::<()>().await;
+        }
+    };
+    #[cfg(unix)]
+    let term = async {
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut s) => {
+                s.recv().await;
+            }
+            Err(_) => std::future::pending::<()>().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let term = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {},
+        () = term => {},
+    }
+    tracing::info!("shutting down");
+}

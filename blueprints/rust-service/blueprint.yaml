@@ -1,0 +1,61 @@
+name: rust-service
+kind: stack
+summary: Rust HTTP service (axum, tokio, tracing, /healthz, graceful shutdown) in a cargo workspace, tested, with a Docker image to GHCR on release and an atlas service
+requires: [base, rust-workspace]
+target: "."
+
+contributes:
+  atlas:
+    services:
+      - name: "{{ .Name }}-api"
+        command: cargo run -q -p {{ .Name }}-api
+        port: "{{ port "rust-api" }}"
+        health: "http://localhost:{{ port "rust-api" }}/healthz"
+        env:
+          PORT: "{{ port "rust-api" }}"
+          LOG_LEVEL: debug
+        open_url: "http://localhost:{{ port "rust-api" }}/healthz"
+  env:
+    - "LOG_LEVEL=debug"
+  gitignore:
+    - "*.profraw"
+  release:
+    jobs:
+      rust-service-image:
+        name: Docker image ({{ .Name }}-api)
+        needs: gate
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        permissions:
+          contents: read
+          packages: write
+        steps:
+          - uses: "{{ version \"actions.checkout\" }}"
+            with:
+              ref: refs/tags/${{ env.TAG }}
+              persist-credentials: false
+          - name: Log in to GHCR
+            env:
+              GHCR_TOKEN: ${{ github.token }}
+              GHCR_USER: ${{ github.actor }}
+            run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          - name: Build and push
+            env:
+              IMAGE: ghcr.io/{{ lower .Owner }}/{{ .Name }}-api
+            run: |
+              VERSION="${TAG#v}"
+              docker build -f crates/{{ .Name }}-api/Dockerfile -t "$IMAGE:$VERSION" .
+              docker push "$IMAGE:$VERSION"
+              case "$VERSION" in
+                *-*) ;; # a prerelease never moves :latest
+                *) docker tag "$IMAGE:$VERSION" "$IMAGE:latest" && docker push "$IMAGE:latest" ;;
+              esac
+  agents: |
+    Rust HTTP service in `crates/{{ .Name }}-api` (axum {{ version "crate_axum" }}, tokio, tracing).
+
+    - Run: `atlas dev` starts it on port {{ port "rust-api" }} (`GET /healthz`). Or `PORT=8080 cargo run -p {{ .Name }}-api`.
+    - Layout: `src/main.rs` (config from the environment, tracing, bind, graceful shutdown on SIGINT/SIGTERM), `src/lib.rs` (`app()` builds the `Router`; routes and handlers). Add a route in `app()` and a test beside it.
+    - Tests call the `Router` directly through `tower::ServiceExt::oneshot`, no socket: see `tests/health.rs`. Write the failing test first.
+    - Config comes from the environment only: `PORT` (default 8080), `LOG_LEVEL` (a `tracing` filter such as `debug` or `info,tower_http=warn`; default `info`).
+    - Logs are structured JSON via `tracing-subscriber` on stdout. Use `tracing::info!`/`warn!`/`error!`, never `println!`.
+    - Release: a `v*` tag builds `crates/{{ .Name }}-api/Dockerfile` (context: the repository root, because the crate is a workspace member) and pushes `ghcr.io/{{ lower .Owner }}/{{ .Name }}-api:<version>`.

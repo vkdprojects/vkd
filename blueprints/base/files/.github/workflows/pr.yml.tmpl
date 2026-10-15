@@ -1,0 +1,49 @@
+name: Pull request
+
+# Checks on the pull request itself, not the code: a title that is a Conventional Commits subject (a squash merge
+# makes it the commit subject on main){{if .OpenSource}}, and every commit signed off (DCO){{end}}. `pull_request`, never
+# `pull_request_target`: no secrets and a read-only token, forks included.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+{{- if .OpenSource}}
+  dco:
+    name: Signed-off-by
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: {{version "actions.checkout"}}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check sign-offs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: scripts/check-dco.sh "$BASE_SHA" "$HEAD_SHA"
+
+{{- end}}
+  title:
+    name: Conventional title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: {{version "actions.checkout"}}
+        with:
+          persist-credentials: false
+
+      # The title goes through env, never `${{ }}` inside the script: it is attacker-controlled text.
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/check-pr-title.sh "$TITLE"

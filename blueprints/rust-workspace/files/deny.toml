@@ -1,0 +1,37 @@
+# cargo-deny: advisories, licenses, bans and sources for every dependency. CI runs `cargo deny check`.
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+# A transitive dependency with no upgrade path. Re-check when bumping tauri; delete the entry when it is gone.
+ignore = [
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is unmaintained; pulled in by tauri's gtk3-rs Linux stack (tauri-desktop), no upgrade path" },
+]
+
+[licenses]
+version = 2
+# The workspace crates themselves are not checked against the allow-list when `publish = false`.
+private = { ignore = true }
+# Permissive licenses only. Add one here on purpose, with the reason in the pull request.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "CC0-1.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

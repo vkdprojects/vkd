@@ -1,0 +1,41 @@
+import { caThemePlugin } from "@codeatlasdev/ui/vite";
+import adapter from "@sveltejs/{{if has "go-api"}}adapter-node{{else}}adapter-static{{end}}";
+import { sveltekit } from "@sveltejs/kit/vite";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+import { defineConfig } from "vitest/config";
+import { theme } from "./src/lib/theme.ts";
+
+// atlas injects PORT; strictPort fails loudly instead of drifting to another port.
+// 127.0.0.1 because "localhost" resolves to ::1 first on macOS and atlas health checks use IPv4.
+const port = Number(process.env.PORT) || {{port "web"}};
+{{- if has "go-api"}}
+
+// API_URL is where `/api/*` is proxied in dev (the go-api service on its own port).
+const api = process.env.API_URL || "http://127.0.0.1:{{port "api"}}";
+{{- end}}
+
+export default defineConfig({
+	plugins: [
+		sveltekit({
+			preprocess: [vitePreprocess()],
+			adapter: adapter({{if has "go-api"}}{{else}}{ fallback: "200.html" }{{end}}),
+		}),
+		caThemePlugin(theme),
+	],
+	server: {
+		host: "127.0.0.1",
+		port,
+		strictPort: true,
+{{- if has "go-api"}}
+		proxy: {
+			"/api": {
+				target: api,
+				changeOrigin: true,
+				rewrite: (path) => path.replace(/^\/api/, ""),
+			},
+		},
+{{- end}}
+	},
+	preview: { host: "127.0.0.1", port, strictPort: true },
+	test: { include: ["src/**/*.test.ts"] },
+});

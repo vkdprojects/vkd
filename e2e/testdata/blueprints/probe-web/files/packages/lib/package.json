@@ -1,0 +1,7 @@
+{
+	"name": "lib",
+	"private": true,
+	"scripts": {
+		"check-types": "echo lib-types-ok"
+	}
+}

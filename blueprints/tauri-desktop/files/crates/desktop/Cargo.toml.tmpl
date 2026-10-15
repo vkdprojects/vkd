@@ -1,0 +1,29 @@
+[package]
+name = "{{.Name}}-desktop"
+version = "0.1.0"
+description = {{quote .Description}}
+edition.workspace = true
+rust-version.workspace = true
+{{- if eq .License "proprietary"}}
+publish.workspace = true
+{{- else}}
+license.workspace = true
+{{- end}}
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "{{snake .Name}}_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "{{version "crate_tauri_build"}}", features = [] }
+
+[dependencies]
+tauri = { version = "{{version "crate_tauri"}}", features = [] }
+tauri-plugin-opener = "{{version "crate_tauri_plugin_opener"}}"
+serde.workspace = true
+serde_json.workspace = true

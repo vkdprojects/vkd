@@ -1,0 +1,9 @@
+// Keeps a release build on Windows from opening a console window; it does nothing elsewhere.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+    if let Err(err) = {{snake .Name}}_desktop_lib::run() {
+        eprintln!("error: {err}");
+        std::process::exit(1);
+    }
+}

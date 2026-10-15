@@ -1,0 +1,89 @@
+# Single source of pinned versions for every generated project.
+# Templates read them with {{ version "key" }}; `vkd update` re-renders with the values of the vkd you run.
+# Bump here, never inside a blueprint. Checked 2026-10-14 (npm view, go list -m -versions, gh api).
+
+# Toolchains
+go: "1.25"
+bun: "1.4.3"
+node: "24"
+rust: "1.99"
+
+# JavaScript tooling
+biome: "2.5.15"
+turbo: "2.11.8"
+typescript: "7.0.2"
+vite: "8.3.4"
+svelte: "5.57.2"
+sveltekit: "3.1.0"
+adapter_static: "4.0.0"
+vite_plugin_svelte: "7.3.1"
+svelte_check: "4.7.6"
+astro: "7.3.8"
+tauri: "2.12.3"
+codeatlasdev_ui: "2.3.1"
+
+# Go tooling
+golangci_lint: "v2.14.0"
+actionlint: "v1.7.12"
+
+# GitHub Actions: full-SHA pins. checkout, setup_bun, upload/download_artifact, action_gh_release,
+# install_action, rust_cache and cargo_deny are copied from codeatlasdev/atlas .github/workflows;
+# setup_go and golangci_lint were resolved with `gh api repos/<repo>/commits/<tag> --jq .sha` (the commit, never an
+# annotated tag object).
+actions:
+  checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+  setup_go: "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0"
+  setup_bun: "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0"
+  upload_artifact: "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"
+  download_artifact: "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2"
+  action_gh_release: "softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3"
+  install_action: "taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28"
+  rust_cache: "Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2"
+  golangci_lint: "golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0"
+  cargo_deny: "EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1"
+
+# rust-workspace, rust-cli, rust-service
+# rust_toolchain is the exact rust-toolchain.toml channel; `rust` above is the MSRV (`rust-version`).
+# Crate keys are semver-compatible requirements written to [workspace.dependencies]; Cargo.lock pins the exact build.
+rust_toolchain: "1.99.0"
+crate_clap: "4.6"
+crate_anyhow: "1.0"
+crate_assert_cmd: "2.2"
+crate_predicates: "3.1"
+crate_axum: "0.8"
+crate_tokio: "1.53"
+crate_tower: "0.5"
+crate_http_body_util: "0.1"
+crate_serde: "1.0"
+crate_serde_json: "1.0"
+crate_tracing: "0.1"
+crate_tracing_subscriber: "0.3"
+
+# go-cli
+urfave_cli: "v3.14.0"
+
+# tauri-desktop
+# `tauri` above is the tauri-cli / @tauri-apps/cli version. Crate keys are semver requirements for Cargo.toml;
+# Cargo.lock pins the exact build. npm keys are exact.
+crate_tauri: "2.12"
+crate_tauri_build: "2.7"
+crate_tauri_plugin_opener: "2.7"
+tauri_api: "2.12.4"
+tauri_plugin_opener_js: "2.7.2"
+
+# astro-site
+# astro check refuses TypeScript 7 ("install TypeScript 6 instead"), so the site pins its own `typescript_astro`.
+astro_svelte: "9.0.1"
+astro_sitemap: "3.7.4"
+astro_check: "0.9.10"
+typescript_astro: "6.0.3"
+types_bun: "1.4.3"
+wrangler: "4.151.0"
+
+# sveltekit-web
+# SvelteKit 3 and svelte-check read tsconfig through the TypeScript 6 JS API (`ts.sys`), which TypeScript 7 does not
+# ship, so the web workspace pins its own `typescript_sveltekit` while the root keeps `typescript`.
+typescript_sveltekit: "6.0.3"
+adapter_node: "6.0.0"
+vitest: "5.0.4"
+types_node: "24.19.2"

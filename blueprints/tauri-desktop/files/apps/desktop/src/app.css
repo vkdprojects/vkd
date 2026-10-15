@@ -1,0 +1,8 @@
+@import "@codeatlasdev/ui/styles/global.css";
+@import "@codeatlasdev/ui/styles/materials.css";
+
+html,
+body {
+	margin: 0;
+	height: 100%;
+}

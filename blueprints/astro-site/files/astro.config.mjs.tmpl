@@ -1,0 +1,17 @@
+import sitemap from "@astrojs/sitemap";
+import svelte from "@astrojs/svelte";
+import { caUI } from "@codeatlasdev/ui/astro";
+import { defineConfig } from "astro/config";
+import { siteUrl } from "./src/lib/site-url.ts";
+import { theme } from "./src/theme.ts";
+
+export default defineConfig({
+	// Absolute URLs in the sitemap and canonical links. Set SITE_URL where the site is built; the default is the
+	// GitHub Pages address of the owner.
+	site: siteUrl(process.env, "https://{{lower .Owner}}.github.io"),
+	output: "static",
+	trailingSlash: "always",
+	integrations: [svelte(), caUI(theme), sitemap()],
+	// First paint must not wait on stylesheet round trips.
+	build: { inlineStylesheets: "always" },
+});

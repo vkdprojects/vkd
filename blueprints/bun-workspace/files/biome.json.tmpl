@@ -1,0 +1,20 @@
+{
+	"$schema": "https://biomejs.dev/schemas/{{version "biome"}}/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"files": { "ignoreUnknown": true },
+	"formatter": { "indentStyle": "tab" },
+	"javascript": { "formatter": { "quoteStyle": "double" } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"style": { "noNonNullAssertion": "off" }
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*.svelte"],
+			"formatter": { "enabled": false }
+		}
+	]
+}

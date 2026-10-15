@@ -1,0 +1,57 @@
+import { beforeAll, describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+// Builds the real site once and asserts on the static output: this is what ships.
+const root = join(import.meta.dir, "..");
+const dist = join(root, "dist");
+const read = (path: string) => readFileSync(join(dist, path), "utf8");
+
+beforeAll(() => {
+	// An empty SITE_URL (what `.env.example` ships) must fall back to the default, not break the build.
+	const build = Bun.spawnSync(["bun", "run", "build"], {
+		cwd: root,
+		env: { ...process.env, SITE_URL: "" },
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	if (build.exitCode !== 0)
+		throw new Error(`astro build failed:\n${build.stdout}\n${build.stderr}`);
+}, 180_000);
+
+describe("built site", () => {
+	test("home page renders the title and hydrates the Svelte island", () => {
+		const html = read("index.html");
+		expect(html).toContain("<title>{{.Name}}</title>");
+		expect(html).toContain("<astro-island");
+		expect(html).toContain("ca-btn");
+	});
+
+	test("docs pages are generated from the content collection", () => {
+		expect(read("docs/index.html")).toContain("Documentation");
+		expect(read("docs/getting-started/index.html")).toContain(
+			"Getting started",
+		);
+	});
+
+	test("the sitemap lists every page", () => {
+		const sitemap = read("sitemap-0.xml");
+		expect(sitemap).toContain("/docs/getting-started/");
+		expect(sitemap).toContain("/docs/</loc>");
+	});
+
+	test("canonical links and the sitemap use the default site URL when SITE_URL is empty", () => {
+		expect(read("index.html")).toContain(
+			'<link rel="canonical" href="https://{{lower .Owner}}.github.io/"',
+		);
+		expect(read("sitemap-0.xml")).toContain("https://{{lower .Owner}}.github.io/docs/");
+	});
+
+	test("robots.txt points at the sitemap", () => {
+		expect(read("robots.txt")).toContain("sitemap-index.xml");
+	});
+
+	test("there is a 404 page", () => {
+		expect(existsSync(join(dist, "404.html"))).toBe(true);
+	});
+});
